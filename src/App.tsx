@@ -178,21 +178,29 @@ const PRODUCTS = [
 ];
 
 async function fetchImageAsBase64(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject("No 2d context");
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL("image/jpeg"));
-    };
-    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
-    img.src = url;
-  });
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Direct fetch failed (likely CORS), trying proxy...", error);
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`Proxy HTTP error! status: ${response.status}`);
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 }
 
 export default function App() {
@@ -217,23 +225,10 @@ export default function App() {
   const handleTryOn = async (product: typeof PRODUCTS[0]) => {
     if (!userPhoto) return;
 
-    // Check for API key selection
-    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-      await window.aistudio.openSelectKey();
-    }
-
     setSelectedProduct(product);
     setStep(3);
 
     try {
-      try {
-        const garmentResponse = await fetch(product.img);
-        if (!garmentResponse.ok) throw new Error('Garment fetch failed');
-        console.log("Garment image fetched successfully");
-      } catch(e) {
-        console.error("Garment fetch error", e);
-      }
-
       const productImgBase64 = await fetchImageAsBase64(product.img);
       
       console.log("Starting Gemini call", { 
@@ -265,7 +260,7 @@ garment from collar to hem is fully shown.`;
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: {
           parts: [
             {
@@ -285,9 +280,6 @@ garment from collar to hem is fully shown.`;
             },
           ],
         },
-        config: {
-          // responseModalities is not needed/supported for this model and may cause issues
-        }
       });
 
       console.log("Gemini response received", response);
@@ -311,15 +303,8 @@ garment from collar to hem is fully shown.`;
       }
     } catch (error: any) {
       console.error("Gemini call failed", error);
-      
-      if (error?.message?.includes("Requested entity was not found") || error?.message?.includes("PERMISSION_DENIED") || error?.message?.includes("The caller does not have permission")) {
-        alert("API Key error. Please select a valid API key with billing enabled.");
-        if (window.aistudio) {
-          await window.aistudio.openSelectKey();
-        }
-      } else {
-        alert("FAILED TO GENERATE IMAGE. PLEASE TRY AGAIN.");
-      }
+      alert(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
+      setStep(2); // Reset to allow retry
     }
   };
 
