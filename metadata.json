@@ -1,0 +1,5 @@
+{
+  "name": "Rawri Virtual Try-On",
+  "description": "A virtual try-on web app for Rawri, an Indian streetwear and denim brand, using Gemini 2.5 Flash image generation.",
+  "requestFramePermissions": []
+}
