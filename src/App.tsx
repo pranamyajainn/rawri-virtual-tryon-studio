@@ -237,24 +237,49 @@ export default function App() {
         productName: product.name 
       });
 
-      const prompt = `You are given two images. The first is a photo of a person. 
-The second is a garment from rawri — an Indian streetwear 
-and denim brand. Generate a single high-quality image of 
-the person wearing exactly that garment. Preserve the 
-garment's exact texture, wash, color, distressing, hardware 
-details, and silhouette with complete fidelity — do not 
-simplify or alter any detail. Maintain the person's exact 
-face, skin tone, hair, and body proportions. Background 
-should be a clean dark urban environment — concrete wall 
-or plain dark backdrop. The overall image should feel 
-editorial, raw, and streetwear-ready. 
-The garment is specifically: ${product.description}. 
-Reproduce this exactly.
-Generate a FULL BODY image showing the person 
-from head to toe. Do not crop or cut off any part 
-of the body or the garment. The complete outfit 
-must be visible in the frame. Ensure the entire 
-garment from collar to hem is fully shown.`;
+      const prompt = `You are a professional fashion photographer 
+and photo editor. You have been given two images:
+
+IMAGE 1: A person who wants to try on a garment.
+IMAGE 2: The exact garment they want to wear — 
+from rawri, an Indian streetwear denim brand.
+
+YOUR PRIMARY DIRECTIVE — GARMENT FIDELITY:
+Reproduce the garment in IMAGE 2 with absolute 
+precision on the person in IMAGE 1. This is not 
+a creative task. Do not interpret, simplify, 
+reimagine, or stylize the garment. 
+
+Reproduce EXACTLY:
+- Every distressed detail, raw edge, and fray
+- Every patch, panel, and fabric texture
+- Every hardware element (buttons, zippers, 
+  buckles, straps)
+- The exact wash, color, and denim weight
+- The exact silhouette, cut, and fit structure
+- The exact length and proportions of the garment
+
+The garment is: ${product.name}
+Specific details: ${product.description}
+
+PERSON FIDELITY:
+- Preserve the person's exact face, skin tone, 
+  hair color, hair style
+- Maintain their body proportions exactly
+- Keep their pose as close to original as possible
+
+OUTPUT REQUIREMENTS:
+- Full body image, head to toe, nothing cropped
+- The complete garment must be fully visible
+- Background: dark concrete wall or plain dark 
+  surface, editorial streetwear feel
+- Lighting: dramatic, high contrast, editorial
+- The result must look like a real photograph, 
+  not an illustration
+
+Do not add any elements not present in either 
+input image. Do not change the garment design 
+in any way.`;
 
       // Create a new GoogleGenAI instance right before making an API call
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -350,12 +375,12 @@ garment from collar to hem is fully shown.`;
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-0 w-full max-w-7xl mx-auto mb-16 md:mb-24">
               {[
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01364_27345cbb-efa0-4378-be9d-a68f4da15117.jpg?v=1754479051&width=1500",
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01220.jpg?v=1754478393&width=1500",
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01206.jpg?v=1754477404&width=1500",
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01025.jpg?v=1754477680&width=1500",
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01268.jpg?v=1754478667&width=1500",
-                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01243.jpg?v=1754477862&width=1500"
+                "https://rawri.in/cdn/shop/files/Untitleddesign_13.jpg?v=1754479052&width=1500", // Halter Ego (Female Front)
+                "https://rawri.in/cdn/shop/files/Untitleddesign_11.jpg?v=1754478354&width=1500", // Basement Issue (Male Front)
+                "https://rawri.in/cdn/shop/files/16.jpg?v=1754477373&width=1500", // Fringe (Female Front)
+                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01025.jpg?v=1754477680&width=1500", // Dungeon Bay (Male Front)
+                "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01273.jpg?v=1754478667&width=1500", // Looped In (Female Front)
+                "https://rawri.in/cdn/shop/files/Untitleddesign_9.jpg?v=1754477862&width=1500" // Denim Melt (Male Front)
               ].map((src, i) => (
                 <div key={i} className="aspect-[3/4] w-full overflow-hidden">
                   <img 
