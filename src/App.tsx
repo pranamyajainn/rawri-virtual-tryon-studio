@@ -278,16 +278,10 @@ Shot on 35mm, ultra sharp, photorealistic.`;
   };
 
   const handleUploadClick = () => {
-    const hasSeenModal = sessionStorage.getItem('rawri_upload_modal_seen');
-    if (hasSeenModal === 'true') {
-      fileInputRef.current?.click();
-    } else {
-      setShowUploadModal(true);
-    }
+    setShowUploadModal(true);
   };
 
   const handleModalConfirm = () => {
-    sessionStorage.setItem('rawri_upload_modal_seen', 'true');
     setShowUploadModal(false);
     fileInputRef.current?.click();
   };
@@ -311,10 +305,10 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             >
               <button 
                 onClick={() => setShowUploadModal(false)}
-                className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                className="absolute top-4 right-4 text-white/50 text-sm hover:text-white transition-colors font-sans"
                 aria-label="Close"
               >
-                <X size={20} />
+                X
               </button>
               
               <h3 className="font-sans font-bold text-white uppercase text-xl mb-4 pr-6">
@@ -322,7 +316,8 @@ Shot on 35mm, ultra sharp, photorealistic.`;
               </h3>
               
               <p className="font-mono text-xs text-white/70 leading-relaxed mb-6">
-                Clear face. Good lighting. Plain background. No glasses, masks, or obstructions.
+                Clear face. Good lighting. Plain background.<br />
+                No glasses, masks, or obstructions.<br />
                 Poor photo = poor result.
               </p>
               
@@ -606,7 +601,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             transition={{ duration: 0.3 }}
             className="flex flex-col md:flex-row w-full relative"
           >
-            <div className="w-full md:w-[60%] md:max-h-screen md:overflow-y-auto bg-rawri-black border-b md:border-b-0 md:border-r border-rawri-white/20 custom-scrollbar">
+            <div className="w-full md:w-[60%] md:max-h-[100dvh] md:overflow-y-auto bg-rawri-black border-b md:border-b-0 md:border-r border-rawri-white/20 custom-scrollbar pt-24 md:pt-0 flex flex-col items-center justify-center">
               {resultImage && (
                 <img 
                   src={resultImage} 
@@ -616,7 +611,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
               )}
             </div>
             
-            <div className="w-full md:w-[40%] md:h-screen md:sticky md:top-0 flex flex-col justify-center p-6 md:p-12 overflow-y-auto custom-scrollbar">
+            <div className="w-full md:w-[40%] md:h-[100dvh] md:sticky md:top-0 flex flex-col justify-center p-6 md:p-12 pt-12 md:pt-12 overflow-y-auto custom-scrollbar bg-rawri-black">
               <p className="font-mono text-xs tracking-widest text-rawri-orange mb-4">YOUR LOOK</p>
               <h2 className="font-sans font-bold text-3xl md:text-5xl text-rawri-white uppercase mb-4">
                 {selectedProduct?.name}
