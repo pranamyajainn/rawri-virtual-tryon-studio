@@ -1,185 +1,108 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Upload, ArrowRight, Check } from 'lucide-react';
+import { Upload, ArrowRight, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const PRODUCTS = [
   {
-    "id": 1,
-    "name": "DENIM MELT",
-    "price": "₹ 7,200.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/Untitleddesign_9.jpg?v=1754477862&width=1500",
-    "url": "https://rawri.in/products/denim-melt",
-    "description": "rawri upper body garment: denim melt"
+    id: "1",
+    name: "DENIM MELT",
+    price: "₹7,200",
+    category: "tops",
+    garment_description: "heavy washed denim jacket with melt-effect panels, raw edges, and oversized structured silhouette",
+    imageUrl: "https://rawri.in/cdn/shop/files/Untitleddesign_9.jpg?v=1754477862&width=1500",
+    url: "https://rawri.in/products/denim-melt"
   },
   {
-    "id": 2,
-    "name": "MIDNIGHT HUES",
-    "price": "₹ 6,660.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01275.jpg?v=1754476507&width=1500",
-    "url": "https://rawri.in/products/midnight-hues",
-    "description": "rawri upper body garment: midnight hues"
+    id: "2",
+    name: "MIDNIGHT HUES",
+    price: "₹6,660",
+    category: "tops",
+    garment_description: "dark tonal denim jacket with contrast panel construction and structured collar",
+    imageUrl: "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01275.jpg?v=1754476507&width=1500",
+    url: "https://rawri.in/products/midnight-hues"
   },
   {
-    "id": 3,
-    "name": "DUNGEON BAY",
-    "price": "₹ 7,200.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01025.jpg?v=1754477680&width=1500",
-    "url": "https://rawri.in/products/dungeon-bay",
-    "description": "rawri upper body garment: dungeon bay"
+    id: "3",
+    name: "DUNGEON BAY",
+    price: "₹7,200",
+    category: "tops",
+    garment_description: "heavy washed dark denim jacket with structured silhouette, raw edges, and oversized fit",
+    imageUrl: "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01025.jpg?v=1754477680&width=1500",
+    url: "https://rawri.in/products/dungeon-bay"
   },
   {
-    "id": 4,
-    "name": "HALTER EGO",
-    "price": "₹ 1,800.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/Untitleddesign_13.jpg?v=1754479052&width=1500",
-    "url": "https://rawri.in/products/halter-ego",
-    "description": "rawri upper body garment: halter ego"
+    id: "4",
+    name: "HALTER EGO",
+    price: "₹1,800",
+    category: "tops",
+    garment_description: "denim halter crop top with patchwork panels, hardware buckle details, and lace-up back",
+    imageUrl: "https://rawri.in/cdn/shop/files/Untitleddesign_13.jpg?v=1754479052&width=1500",
+    url: "https://rawri.in/products/halter-ego"
   },
   {
-    "id": 5,
-    "name": "LOOPED IN",
-    "price": "₹ 2,700.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01273.jpg?v=1754478667&width=1500",
-    "url": "https://rawri.in/products/looped-in",
-    "description": "rawri upper body garment: looped in"
+    id: "5",
+    name: "LOOPED IN",
+    price: "₹2,700",
+    category: "tops",
+    garment_description: "denim corset-style crop top with loop hardware detailing, patchwork construction, and structured boning",
+    imageUrl: "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01273.jpg?v=1754478667&width=1500",
+    url: "https://rawri.in/products/looped-in"
   },
   {
-    "id": 6,
-    "name": "FRINGE",
-    "price": "₹ 10,800.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/16.jpg?v=1754477373&width=1500",
-    "url": "https://rawri.in/products/fringe",
-    "description": "rawri upper body garment: fringe"
+    id: "6",
+    name: "FRINGE",
+    price: "₹10,800",
+    category: "tops",
+    garment_description: "dramatic oversized denim jacket entirely covered in long fringe strips cut from raw denim, chaotic layered texture",
+    imageUrl: "https://rawri.in/cdn/shop/files/16.jpg?v=1754477373&width=1500",
+    url: "https://rawri.in/products/fringe"
   },
   {
-    "id": 7,
-    "name": "BASEMENT ISSUE",
-    "price": "₹ 7,650.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/Untitleddesign_11.jpg?v=1754478354&width=1500",
-    "url": "https://rawri.in/products/basement-issue",
-    "description": "rawri upper body garment: basement issue"
+    id: "7",
+    name: "BASEMENT ISSUE",
+    price: "₹7,650",
+    category: "tops",
+    garment_description: "dark washed oversized denim jacket with heavy distressing, raw hem, and boxy structured silhouette",
+    imageUrl: "https://rawri.in/cdn/shop/files/Untitleddesign_11.jpg?v=1754478354&width=1500",
+    url: "https://rawri.in/products/basement-issue"
   },
   {
-    "id": 8,
-    "name": "FRAYPLAY",
-    "price": "₹ 1,800.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/24.jpg?v=1754479555&width=1500",
-    "url": "https://rawri.in/products/frayplay",
-    "description": "rawri upper body garment: frayplay"
+    id: "8",
+    name: "FRAYPLAY",
+    price: "₹1,800",
+    category: "tops",
+    garment_description: "denim crop top with heavy fray detailing across the chest and raw cut edges",
+    imageUrl: "https://rawri.in/cdn/shop/files/24.jpg?v=1754479555&width=1500",
+    url: "https://rawri.in/products/frayplay"
   },
   {
-    "id": 9,
-    "name": "BURNING PADDED VEST",
-    "price": "₹ 6,300.00",
-    "category": "upper_body",
-    "img": "https://rawri.in/cdn/shop/files/Untitleddesign_10.jpg?v=1754478175&width=1500",
-    "url": "https://rawri.in/products/burning-padded-vest",
-    "description": "rawri upper body garment: burning padded vest"
-  },
-  {
-    "id": 10,
-    "name": "SEA WAYS",
-    "price": "₹ 3,600.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01415.jpg?v=1754465026&width=1500",
-    "url": "https://rawri.in/products/sea-ways",
-    "description": "rawri lower body garment: sea ways"
-  },
-  {
-    "id": 11,
-    "name": "STRIPS AND STRAPS",
-    "price": "₹ 8,100.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01246.jpg?v=1754463492&width=1500",
-    "url": "https://rawri.in/products/strips-and-straps",
-    "description": "rawri lower body garment: strips and straps"
-  },
-  {
-    "id": 12,
-    "name": "SHATTERED",
-    "price": "₹ 4,500.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01395.jpg?v=1754462420&width=1500",
-    "url": "https://rawri.in/products/scattered-way",
-    "description": "rawri lower body garment: shattered"
-  },
-  {
-    "id": 13,
-    "name": "SLICED OUT",
-    "price": "₹ 4,500.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01292.jpg?v=1754464257&width=1500",
-    "url": "https://rawri.in/products/sliced-out",
-    "description": "rawri lower body garment: sliced out"
-  },
-  {
-    "id": 14,
-    "name": "UNCIRCLED",
-    "price": "₹ 4,500.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01437.jpg?v=1754463985&width=1500",
-    "url": "https://rawri.in/products/uncircled",
-    "description": "rawri lower body garment: uncircled"
-  },
-  {
-    "id": 15,
-    "name": "THUNDER SKIRT",
-    "price": "₹ 2,700.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/27.jpg?v=1754480111&width=1500",
-    "url": "https://rawri.in/products/thunder-skirt",
-    "description": "rawri lower body garment: thunder skirt"
-  },
-  {
-    "id": 16,
-    "name": "PANELLING MY INNER PEACE",
-    "price": "₹ 6,300.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01317.jpg?v=1754464722&width=1500",
-    "url": "https://rawri.in/products/panelling-my-inner-peace",
-    "description": "rawri lower body garment: panelling my inner peace"
-  },
-  {
-    "id": 17,
-    "name": "CHAOTIC FUSION",
-    "price": "₹ 4,500.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01374.jpg?v=1754462873&width=1500",
-    "url": "https://rawri.in/products/chaotic-fusion",
-    "description": "rawri lower body garment: chaotic fusion"
-  },
-  {
-    "id": 18,
-    "name": "FLANELLED",
-    "price": "₹ 5,400.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/PhotosbyAbhisoriginals-01079.jpg?v=1754461515&width=1500",
-    "url": "https://rawri.in/products/flanelled",
-    "description": "rawri lower body garment: flanelled"
-  },
-  {
-    "id": 19,
-    "name": "DRIPPING BLOOD",
-    "price": "₹ 8,100.00",
-    "category": "lower_body",
-    "img": "https://rawri.in/cdn/shop/files/15.jpg?v=1754476803&width=1500",
-    "url": "https://rawri.in/products/dripping-blood",
-    "description": "rawri lower body garment: dripping blood"
+    id: "9",
+    name: "BURNING PADDED VEST",
+    price: "₹6,300",
+    category: "tops",
+    garment_description: "structured padded denim vest with quilted panels, raw edges, and boxy oversized fit",
+    imageUrl: "https://rawri.in/cdn/shop/files/Untitleddesign_10.jpg?v=1754478175&width=1500",
+    url: "https://rawri.in/products/burning-padded-vest"
   }
 ];
 
 async function fetchImageAsBase64(url: string): Promise<string> {
+  const fetchWithTimeout = async (resource: string, timeoutMs: number) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(resource, { signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
+
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, 8000);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const blob = await response.blob();
     return await new Promise((resolve, reject) => {
@@ -189,9 +112,9 @@ async function fetchImageAsBase64(url: string): Promise<string> {
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.warn("Direct fetch failed (likely CORS), trying proxy...", error);
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const response = await fetch(proxyUrl);
+    console.warn("Direct fetch failed (likely CORS or timeout), trying proxy...", error);
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    const response = await fetchWithTimeout(proxyUrl, 15000);
     if (!response.ok) throw new Error(`Proxy HTTP error! status: ${response.status}`);
     const blob = await response.blob();
     return await new Promise((resolve, reject) => {
@@ -205,117 +128,138 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 
 export default function App() {
   const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(0);
-  const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [userPhotos, setUserPhotos] = useState<string[]>([]);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof PRODUCTS[0] | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'TOPS & JACKETS' | 'BOTTOMS'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'TOPS & JACKETS'>('ALL');
+  const [loadingMessage, setLoadingMessage] = useState<string>("CONSTRUCTING YOUR LOOK...");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [timeLeft, setTimeLeft] = useState<number>(25);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (step === 3 && loadingMessage.includes("GENERATING")) {
+      setProgress(0);
+      setTimeLeft(25);
+      const startTime = Date.now();
+      const duration = 25000; // Estimate 25 seconds
+
+      interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const newProgress = Math.min((elapsed / duration) * 100, 95); // Cap at 95% until complete
+        setProgress(newProgress);
+        setTimeLeft(Math.max(Math.ceil((duration - elapsed) / 1000), 1));
+      }, 100);
+    } else if (step !== 3) {
+      setProgress(0);
+    }
+    return () => clearInterval(interval);
+  }, [step, loadingMessage]);
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUserPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length > 0) {
+      const newPhotos: string[] = [];
+      let loadedCount = 0;
+
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPhotos.push(reader.result as string);
+          loadedCount++;
+          if (loadedCount === files.length) {
+            setUserPhotos((prev) => [...prev, ...newPhotos]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
 
   const handleTryOn = async (product: typeof PRODUCTS[0]) => {
-    if (!userPhoto) return;
+    if (userPhotos.length === 0) return;
 
+    setErrorMessage(null);
     setSelectedProduct(product);
+    setLoadingMessage("FETCHING GARMENT IMAGES...");
     setStep(3);
 
     try {
-      const productImgBase64 = await fetchImageAsBase64(product.img);
+      const garmentBase64Str = await fetchImageAsBase64(product.imageUrl);
+      const garmentBase64 = garmentBase64Str.split(',')[1];
       
       console.log("Starting Gemini call", { 
-        userImageSize: userPhoto?.length,
-        garmentUrl: product.img,
+        userImagesCount: userPhotos.length,
         productName: product.name 
       });
 
-      const prompt = `You are a professional fashion photographer 
-and photo editor. You have been given two images:
+      const prompt = `A photorealistic full-body fashion photograph. 
+The person in the reference photos is wearing the rawri garment 
+shown in the other reference images. 
 
-IMAGE 1: A person who wants to try on a garment.
-IMAGE 2: The exact garment they want to wear — 
-from rawri, an Indian streetwear denim brand.
+Preserve this person's exact face, skin tone, dark hair, smile and 
+facial features precisely — they must be immediately recognizable.
 
-YOUR PRIMARY DIRECTIVE — GARMENT FIDELITY:
-Reproduce the garment in IMAGE 2 with absolute 
-precision on the person in IMAGE 1. This is not 
-a creative task. Do not interpret, simplify, 
-reimagine, or stylize the garment. 
+The garment is a ${product.name}: ${product.garment_description}. 
+Show it exactly as it appears in the garment reference images.
 
-Reproduce EXACTLY:
-- Every distressed detail, raw edge, and fray
-- Every patch, panel, and fabric texture
-- Every hardware element (buttons, zippers, 
-  buckles, straps)
-- The exact wash, color, and denim weight
-- The exact silhouette, cut, and fit structure
-- The exact length and proportions of the garment
-
-The garment is: ${product.name}
-Specific details: ${product.description}
-
-PERSON FIDELITY:
-- Preserve the person's exact face, skin tone, 
-  hair color, hair style
-- Maintain their body proportions exactly
-- Keep their pose as close to original as possible
-
-OUTPUT REQUIREMENTS:
-- Full body image, head to toe, nothing cropped
-- The complete garment must be fully visible
-- Background: dark concrete wall or plain dark 
-  surface, editorial streetwear feel
-- Lighting: dramatic, high contrast, editorial
-- The result must look like a real photograph, 
-  not an illustration
-
-Do not add any elements not present in either 
-input image. Do not change the garment design 
-in any way.`;
+Shot on 35mm, ultra sharp, photorealistic.`;
 
       // Create a new GoogleGenAI instance right before making an API call
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+      const userPhotoParts = [{
+        inlineData: {
+          data: userPhotos[0].split(',')[1],
+          mimeType: userPhotos[0].split(';')[0].split(':')[1],
+        }
+      }];
+
+      setLoadingMessage("GENERATING AI IMAGE (THIS MAY TAKE A MINUTE)...");
+
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3.1-flash-image-preview',
         contents: {
           parts: [
-            {
-              inlineData: {
-                data: userPhoto.split(',')[1],
-                mimeType: userPhoto.split(';')[0].split(':')[1],
-              },
-            },
-            {
-              inlineData: {
-                data: productImgBase64.split(',')[1],
-                mimeType: productImgBase64.split(';')[0].split(':')[1],
-              },
-            },
-            {
-              text: prompt,
-            },
+            ...userPhotoParts,
+            { inlineData: { data: garmentBase64, mimeType: 'image/jpeg' } },
+            { text: prompt }
           ],
         },
+        config: {
+          // @ts-ignore
+          imageConfig: {
+            aspectRatio: "3:4",
+            imageSize: "2K"
+          }
+        }
       });
 
       console.log("Gemini response received", response);
       console.log("Full response content:", JSON.stringify(response.candidates?.[0]?.content));
 
       let generatedImageUrl = null;
+      let textResponse = "";
+
       if (response.candidates && response.candidates.length > 0) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            generatedImageUrl = `data:${part.inlineData.mimeType || 'image/jpeg'};base64,${part.inlineData.data}`;
-            break;
+        const candidate = response.candidates[0];
+        
+        // Check if the response was blocked by safety filters
+        if (candidate.finishReason === 'SAFETY') {
+          throw new Error("Generation blocked by safety filters. Please try a different photo.");
+        }
+        
+        if (candidate.content && candidate.content.parts) {
+          for (const part of candidate.content.parts) {
+            if (part.inlineData) {
+              generatedImageUrl = `data:${part.inlineData.mimeType || 'image/jpeg'};base64,${part.inlineData.data}`;
+              break;
+            } else if (part.text) {
+              textResponse += part.text + " ";
+            }
           }
         }
       }
@@ -324,17 +268,75 @@ in any way.`;
         setResultImage(generatedImageUrl);
         setStep(4);
       } else {
-        throw new Error("No image generated by the model.");
+        throw new Error(textResponse ? `Model replied: "${textResponse.trim()}"` : "Model returned no image and no text.");
       }
     } catch (error: any) {
       console.error("Gemini call failed", error);
-      alert(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
+      setErrorMessage(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
       setStep(2); // Reset to allow retry
     }
   };
 
+  const handleUploadClick = () => {
+    const hasSeenModal = sessionStorage.getItem('rawri_upload_modal_seen');
+    if (hasSeenModal === 'true') {
+      fileInputRef.current?.click();
+    } else {
+      setShowUploadModal(true);
+    }
+  };
+
+  const handleModalConfirm = () => {
+    sessionStorage.setItem('rawri_upload_modal_seen', 'true');
+    setShowUploadModal(false);
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="min-h-screen bg-rawri-black text-rawri-white font-sans overflow-hidden relative">
+      {/* Upload Modal Overlay */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0D0D0D] border border-white/20 p-6 w-full max-w-[320px] relative"
+            >
+              <button 
+                onClick={() => setShowUploadModal(false)}
+                className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+              
+              <h3 className="font-sans font-bold text-white uppercase text-xl mb-4 pr-6">
+                BEFORE YOU UPLOAD
+              </h3>
+              
+              <p className="font-mono text-xs text-white/70 leading-relaxed mb-6">
+                Clear face. Good lighting. Plain background. No glasses, masks, or obstructions.
+                Poor photo = poor result.
+              </p>
+              
+              <button 
+                onClick={handleModalConfirm}
+                className="w-full bg-[#F0EDE8] text-[#0D0D0D] font-sans font-bold uppercase py-3 transition-opacity hover:opacity-90"
+              >
+                GOT IT, UPLOAD
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Progress Indicator */}
       {step > 0 && (
         <div className="fixed top-0 left-0 right-0 p-6 flex justify-center z-50 pointer-events-none">
@@ -386,7 +388,7 @@ in any way.`;
                   <img 
                     src={src} 
                     alt={`Rawri Look ${i + 1}`} 
-                    className="w-full h-full object-cover object-top grayscale hover:grayscale-0 transition-all duration-300"
+                    className="w-full h-full object-cover object-top"
                   />
                 </div>
               ))}
@@ -416,28 +418,29 @@ in any way.`;
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col items-center justify-center w-full max-w-md mx-auto min-h-screen py-24 px-4"
+            className="flex flex-col items-center justify-start w-full max-w-md mx-auto min-h-[100dvh] pt-[120px] pb-24 px-4 overflow-y-auto"
           >
-            <p className="font-mono text-xs tracking-widest text-rawri-orange mb-4">STEP 01</p>
-            <h2 className="font-sans font-bold text-rawri-white text-3xl mb-2 text-center">UPLOAD YOUR PHOTO</h2>
-            <p className="font-mono text-xs text-rawri-white/50 text-center mb-8 max-w-xs leading-relaxed">
-              STAND AGAINST A PLAIN WALL. GOOD LIGHTING. FRONT FACING.
+            <p className="font-mono text-xs tracking-widest text-rawri-orange mb-[16px]">STEP 01</p>
+            <h2 className="font-sans font-bold text-rawri-white text-3xl mb-[24px] text-center">UPLOAD YOUR PHOTO</h2>
+            
+            <p className="font-mono text-xs text-rawri-white/50 text-center mb-[32px] max-w-xs leading-relaxed">
+              UPLOAD 1 PHOTO FOR BEST RESULTS. STAND AGAINST A PLAIN WALL. GOOD LIGHTING. FRONT FACING.
             </p>
 
             <div 
               className="w-full min-h-[400px] border-2 border-dashed border-rawri-white/20 bg-rawri-black flex flex-col items-center justify-center relative cursor-pointer group overflow-hidden"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleUploadClick}
             >
-              {userPhoto ? (
-                <>
-                  <img src={userPhoto} alt="Upload" className="absolute inset-0 w-full h-full object-cover" />
+              {userPhotos.length > 0 ? (
+                <div className="absolute inset-0 p-1">
+                  <img src={userPhotos[0]} alt="Upload" className="w-full h-full object-cover" />
                   <div className="absolute bottom-4 left-4 bg-rawri-black/80 px-3 py-2 flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-rawri-white flex items-center justify-center">
                       <Check size={10} className="text-rawri-black" strokeWidth={3} />
                     </div>
                     <span className="font-mono text-xs text-rawri-white uppercase">PHOTO READY</span>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="flex flex-col items-center text-rawri-white/50 group-hover:text-rawri-white transition-colors">
                   <Upload size={32} className="mb-4" />
@@ -454,14 +457,22 @@ in any way.`;
               onChange={handlePhotoUpload}
             />
 
-            {userPhoto && (
+            {userPhotos.length > 0 && (
               <div className="w-full flex flex-col items-center mt-6 gap-6">
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors"
-                >
-                  CHANGE PHOTO
-                </button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={handleUploadClick}
+                    className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors"
+                  >
+                    ADD MORE PHOTOS
+                  </button>
+                  <button 
+                    onClick={() => setUserPhotos([])}
+                    className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors"
+                  >
+                    CLEAR ALL
+                  </button>
+                </div>
                 <button 
                   onClick={() => setStep(2)}
                   className="w-full bg-rawri-white text-rawri-black font-sans font-bold uppercase py-4 px-6 hover:bg-rawri-white/90 transition-colors flex items-center justify-center gap-2"
@@ -480,11 +491,11 @@ in any way.`;
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col w-full h-screen overflow-hidden pt-20 pb-0 px-4 md:px-8 max-w-7xl mx-auto relative"
+            className="flex flex-col w-full h-screen overflow-hidden pt-[120px] pb-0 px-4 md:px-8 max-w-7xl mx-auto relative"
           >
-            {userPhoto && (
-              <div className="absolute top-6 left-6 w-12 h-16 border border-rawri-white/20 overflow-hidden hidden md:block z-40 cursor-pointer" onClick={() => setStep(1)} title="Change Photo">
-                <img src={userPhoto} className="w-full h-full object-cover" />
+            {userPhotos.length > 0 && (
+              <div className="absolute top-[120px] left-6 w-12 h-16 border border-rawri-white/20 overflow-hidden hidden md:block z-40 cursor-pointer" onClick={() => setStep(1)} title="Change Photo">
+                <img src={userPhotos[0]} className="w-full h-full object-cover" />
               </div>
             )}
             
@@ -493,7 +504,7 @@ in any way.`;
               <h2 className="font-sans font-bold text-rawri-white text-3xl mb-6 text-center">PICK YOUR PIECE</h2>
               
               <div className="flex flex-wrap justify-center gap-2">
-                {(['ALL', 'TOPS & JACKETS', 'BOTTOMS'] as const).map((f) => (
+                {(['ALL', 'TOPS & JACKETS'] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
@@ -510,11 +521,15 @@ in any way.`;
             </div>
 
             <div className="flex-grow overflow-y-auto min-h-0 pb-20 md:pb-8 custom-scrollbar">
+              {errorMessage && (
+                <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 mb-6 text-center font-mono text-sm">
+                  {errorMessage}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {PRODUCTS.filter(product => {
                   if (filter === 'ALL') return true;
-                  if (filter === 'TOPS & JACKETS') return product.category === 'upper_body';
-                  if (filter === 'BOTTOMS') return product.category === 'lower_body';
+                  if (filter === 'TOPS & JACKETS') return product.category === 'tops';
                   return true;
                 }).map(product => (
                   <div 
@@ -524,10 +539,10 @@ in any way.`;
                   >
                     <div className="aspect-[3/4] overflow-hidden border-b border-rawri-white/20 relative">
                       <img 
-                        src={product.img} 
+                        src={product.imageUrl} 
                         alt={product.name}
                         crossOrigin="anonymous"
-                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-300"
+                        className="w-full h-full object-cover"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
                     </div>
@@ -557,12 +572,28 @@ in any way.`;
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col items-center justify-center min-h-screen p-4"
+            className="flex flex-col items-center justify-center min-h-[100dvh] pt-[120px] pb-12 px-4 w-full max-w-md mx-auto"
           >
             <h1 className="font-sans font-bold text-rawri-white text-4xl lowercase mb-12">rawri</h1>
             <div className="w-12 h-12 border-2 border-rawri-white/20 border-t-rawri-white rounded-full animate-spin mb-8"></div>
-            <h2 className="font-sans italic text-rawri-white text-2xl mb-4 text-center">CONSTRUCTING YOUR LOOK...</h2>
-            <p className="font-mono text-xs text-rawri-orange tracking-widest uppercase text-center">RAWRI VIRTUAL STUDIO</p>
+            <h2 className="font-sans italic text-rawri-white text-xl mb-4 text-center">{loadingMessage}</h2>
+            
+            {loadingMessage.includes("GENERATING") && (
+              <div className="w-full mb-8">
+                <div className="flex justify-between font-mono text-xs text-rawri-white/50 mb-2">
+                  <span>{Math.round(progress)}%</span>
+                  <span>~{timeLeft}s REMAINING</span>
+                </div>
+                <div className="w-full h-1 bg-rawri-white/10 overflow-hidden">
+                  <div 
+                    className="h-full bg-rawri-white transition-all duration-100 ease-linear"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <p className="font-mono text-xs text-rawri-orange tracking-widest uppercase text-center mt-4">RAWRI VIRTUAL STUDIO</p>
           </motion.div>
         )}
 
@@ -609,7 +640,7 @@ in any way.`;
                 </button>
                 <button 
                   onClick={() => {
-                    setUserPhoto(null);
+                    setUserPhotos([]);
                     setResultImage(null);
                     setSelectedProduct(null);
                     setStep(0);
