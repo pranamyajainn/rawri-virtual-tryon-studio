@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Upload, ArrowRight, Check, X, Home } from 'lucide-react';
+import { Upload, ArrowRight, Check, X, Home, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IMAGE_GENERATION_PROMPT } from './prompts';
 
@@ -135,6 +135,7 @@ export default function App() {
   const [loadingMessage, setLoadingMessage] = useState<string>("CONSTRUCTING YOUR LOOK...");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [showSafetyModal, setShowSafetyModal] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<number>(25);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -295,8 +296,8 @@ export default function App() {
             finishReasonStr = candidate.finishReason || "";
             
             // Check if the response was blocked by safety filters
-            if (candidate.finishReason === 'SAFETY') {
-              throw new Error("Generation blocked by safety filters. Please try a different photo.");
+            if (finishReasonStr === 'SAFETY' || finishReasonStr === 'IMAGE_SAFETY' || finishReasonStr.includes('SAFETY')) {
+              throw new Error("Generation blocked by safety filters.");
             }
             
             if (candidate.content && candidate.content.parts) {
@@ -341,7 +342,11 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("Gemini call completely failed", error);
-      setErrorMessage(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
+      if (error?.message && error.message.includes("safety filters")) {
+        setShowSafetyModal(true);
+      } else {
+        setErrorMessage(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
+      }
       setStep(2); // Reset to allow manual retry
     }
   };
@@ -403,6 +408,36 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showSafetyModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4 relative">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#111111] border border-red-900 overflow-hidden max-w-[400px] w-full relative"
+          >
+            <div className="p-8 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-red-950/50 border border-red-900 flex items-center justify-center mb-6">
+                <AlertTriangle size={24} className="text-red-500" />
+              </div>
+              <h3 className="font-sans font-bold text-rawri-white uppercase text-xl mb-3 tracking-widest text-red-500">
+                GENERATION BLOCKED
+              </h3>
+              <p className="font-mono text-xs text-rawri-white/70 leading-relaxed mb-8 uppercase">
+                The AI model blocked this generation due to internal safety guardrails.<br/><br/>
+                This typically occurs when attempting to map cross-gender garments, revealing outfits, or combinations that trigger the model's core image safety policies.
+              </p>
+              <button 
+                type="button"
+                onClick={() => setShowSafetyModal(false)}
+                className="w-full bg-red-900/30 border border-red-900 text-red-500 font-sans font-bold uppercase py-3 transition-colors hover:bg-red-900/50 tracking-widest"
+              >
+                ACKNOWLEDGE
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Progress Indicator & Home Button */}
       {step > 0 && (
