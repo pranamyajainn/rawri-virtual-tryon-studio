@@ -102,8 +102,7 @@ async function fetchImageAsBase64(url: string): Promise<string> {
     }
   };
 
-  try {
-    const response = await fetchWithTimeout(url, 8000);
+  const processResponse = async (response: Response): Promise<string> => {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const blob = await response.blob();
     return await new Promise((resolve, reject) => {
@@ -112,18 +111,27 @@ async function fetchImageAsBase64(url: string): Promise<string> {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  };
+
+  try {
+    const response = await fetchWithTimeout(url, 8000);
+    return await processResponse(response);
   } catch (error) {
-    console.warn("Direct fetch failed (likely CORS or timeout), trying proxy...", error);
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-    const response = await fetchWithTimeout(proxyUrl, 15000);
-    if (!response.ok) throw new Error(`Proxy HTTP error! status: ${response.status}`);
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    console.warn("Direct fetch failed, trying proxy 1...");
+    try {
+      const proxyUrl1 = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg`;
+      const response1 = await fetchWithTimeout(proxyUrl1, 10000);
+      return await processResponse(response1);
+    } catch (error1) {
+      console.warn("Proxy 1 failed, trying proxy 2...");
+      try {
+        const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        const response2 = await fetchWithTimeout(proxyUrl2, 10000);
+        return await processResponse(response2);
+      } catch (error2) {
+        throw new Error(`All fetching attempts failed. Last proxy error: ${error2}`);
+      }
+    }
   }
 }
 
