@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Upload, ArrowRight, Check, X } from 'lucide-react';
+import { Upload, ArrowRight, Check, X, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { IMAGE_GENERATION_PROMPT } from './prompts';
 
 const PRODUCTS = [
   {
@@ -131,7 +132,6 @@ export default function App() {
   const [userPhotos, setUserPhotos] = useState<string[]>([]);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof PRODUCTS[0] | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'TOPS & JACKETS'>('ALL');
   const [loadingMessage, setLoadingMessage] = useState<string>("CONSTRUCTING YOUR LOOK...");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
@@ -159,23 +159,62 @@ export default function App() {
     return () => clearInterval(interval);
   }, [step, loadingMessage]);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          const maxDim = 1200; // Max 1200px to keep payload size safely under limits (~300kb)
+          
+          if (width > height) {
+            if (width > maxDim) {
+              height *= maxDim / width;
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Use JPEG compression
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(dataUrl);
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length > 0) {
-      const newPhotos: string[] = [];
-      let loadedCount = 0;
-
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          newPhotos.push(reader.result as string);
-          loadedCount++;
-          if (loadedCount === files.length) {
-            setUserPhotos((prev) => [...prev, ...newPhotos]);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
+      const newCompressedPhotos: string[] = [];
+      for (const file of files) {
+        try {
+          const compressedDataUrl = await compressImage(file);
+          newCompressedPhotos.push(compressedDataUrl);
+        } catch (error) {
+          console.error("Error compressing image:", error);
+        }
+      }
+      if (newCompressedPhotos.length > 0) {
+        setUserPhotos((prev) => [...prev, ...newCompressedPhotos]);
+      }
     }
   };
 
@@ -188,7 +227,15 @@ export default function App() {
     setStep(3);
 
     try {
-      const garmentBase64Str = await fetchImageAsBase64(product.imageUrl);
+      let garmentBase64Str = await fetchImageAsBase64(product.imageUrl);
+      
+      // Compress the fetched garment image exactly like we compress the user's face to prevent payload crash
+      try {
+        garmentBase64Str = await compressImage(await (await fetch(garmentBase64Str)).blob() as File);
+      } catch (err) {
+        console.warn("Garment secondary compression failed, falling back to raw base64 data");
+      }
+      
       const garmentBase64 = garmentBase64Str.split(',')[1];
       
       console.log("Starting Gemini call", { 
@@ -196,17 +243,7 @@ export default function App() {
         productName: product.name 
       });
 
-      const prompt = `A photorealistic full-body fashion photograph. 
-The person in the reference photos is wearing the rawri garment 
-shown in the other reference images. 
-
-Preserve this person's exact face, skin tone, dark hair, smile and 
-facial features precisely — they must be immediately recognizable.
-
-The garment is a ${product.name}: ${product.garment_description}. 
-Show it exactly as it appears in the garment reference images.
-
-Shot on 35mm, ultra sharp, photorealistic.`;
+      const prompt = IMAGE_GENERATION_PROMPT(product.garment_description);
 
       // Create a new GoogleGenAI instance right before making an API call
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -214,52 +251,84 @@ Shot on 35mm, ultra sharp, photorealistic.`;
       const userPhotoParts = [{
         inlineData: {
           data: userPhotos[0].split(',')[1],
-          mimeType: userPhotos[0].split(';')[0].split(':')[1],
+          mimeType: userPhotos[0].split(';')[0].split(':')[1] || 'image/jpeg',
         }
       }];
 
-      setLoadingMessage("GENERATING AI IMAGE (THIS MAY TAKE A MINUTE)...");
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: {
-          parts: [
-            ...userPhotoParts,
-            { inlineData: { data: garmentBase64, mimeType: 'image/jpeg' } },
-            { text: prompt }
-          ],
-        },
-        config: {
-          // @ts-ignore
-          imageConfig: {
-            aspectRatio: "3:4",
-            imageSize: "2K"
-          }
-        }
-      });
-
-      console.log("Gemini response received", response);
-      console.log("Full response content:", JSON.stringify(response.candidates?.[0]?.content));
-
       let generatedImageUrl = null;
-      let textResponse = "";
+      let lastError: any = null;
+      const MAX_RETRIES = 3;
 
-      if (response.candidates && response.candidates.length > 0) {
-        const candidate = response.candidates[0];
-        
-        // Check if the response was blocked by safety filters
-        if (candidate.finishReason === 'SAFETY') {
-          throw new Error("Generation blocked by safety filters. Please try a different photo.");
-        }
-        
-        if (candidate.content && candidate.content.parts) {
-          for (const part of candidate.content.parts) {
-            if (part.inlineData) {
-              generatedImageUrl = `data:${part.inlineData.mimeType || 'image/jpeg'};base64,${part.inlineData.data}`;
-              break;
-            } else if (part.text) {
-              textResponse += part.text + " ";
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (attempt === 1) {
+            setLoadingMessage("GENERATING AI IMAGE (THIS MAY TAKE A MINUTE)...");
+          } else {
+            setLoadingMessage(`WE HIT A SNAG, RETRYING (ATTEMPT ${attempt} OF ${MAX_RETRIES})...`);
+          }
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-image-preview',
+            contents: {
+              parts: [
+                ...userPhotoParts,
+                { inlineData: { data: garmentBase64, mimeType: 'image/jpeg' } },
+                { text: prompt }
+              ],
+            },
+            config: {
+              // @ts-ignore
+              imageConfig: {
+                aspectRatio: "3:4",
+                imageSize: "2K"
+              }
             }
+          });
+
+          console.log(`Gemini response received (Attempt ${attempt})`, response);
+
+          let textResponse = "";
+          let finishReasonStr = "";
+
+          if (response.candidates && response.candidates.length > 0) {
+            const candidate = response.candidates[0];
+            finishReasonStr = candidate.finishReason || "";
+            
+            // Check if the response was blocked by safety filters
+            if (candidate.finishReason === 'SAFETY') {
+              throw new Error("Generation blocked by safety filters. Please try a different photo.");
+            }
+            
+            if (candidate.content && candidate.content.parts) {
+              for (const part of candidate.content.parts) {
+                if (part.inlineData) {
+                  generatedImageUrl = `data:${part.inlineData.mimeType || 'image/jpeg'};base64,${part.inlineData.data}`;
+                  break;
+                } else if (part.text) {
+                  textResponse += part.text + " ";
+                }
+              }
+            }
+          }
+
+          if (generatedImageUrl) {
+            break; // Success, exit the retry loop
+          } else {
+            throw new Error(textResponse ? `Model replied: "${textResponse.trim()}"` : `Model returned no image and no text. (Finish reason: ${finishReasonStr || 'unknown'})`);
+          }
+
+        } catch (error: any) {
+          console.error(`Gemini call failed on attempt ${attempt}`, error);
+          lastError = error;
+          
+          // Do not retry on safety validation errors
+          if (error?.message && error.message.includes("safety filters")) {
+            break; 
+          }
+
+          if (attempt < MAX_RETRIES) {
+            // Wait 2 seconds before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
       }
@@ -268,12 +337,12 @@ Shot on 35mm, ultra sharp, photorealistic.`;
         setResultImage(generatedImageUrl);
         setStep(4);
       } else {
-        throw new Error(textResponse ? `Model replied: "${textResponse.trim()}"` : "Model returned no image and no text.");
+        throw lastError || new Error("Failed to generate image after retries.");
       }
     } catch (error: any) {
-      console.error("Gemini call failed", error);
+      console.error("Gemini call completely failed", error);
       setErrorMessage(`FAILED TO GENERATE IMAGE: ${error?.message || error}`);
-      setStep(2); // Reset to allow retry
+      setStep(2); // Reset to allow manual retry
     }
   };
 
@@ -304,6 +373,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
               className="bg-[#0D0D0D] border border-white/20 p-6 w-full max-w-[320px] relative"
             >
               <button 
+                type="button"
                 onClick={() => setShowUploadModal(false)}
                 className="absolute top-4 right-4 text-white/50 text-sm hover:text-white transition-colors font-sans"
                 aria-label="Close"
@@ -311,31 +381,47 @@ Shot on 35mm, ultra sharp, photorealistic.`;
                 X
               </button>
               
-              <h3 className="font-sans font-bold text-white uppercase text-xl mb-4 pr-6">
-                BEFORE YOU UPLOAD
+              <h3 className="font-sans font-bold text-rawri-white uppercase text-xl mb-4 pr-6">
+                AVOID THESE MISTAKES
               </h3>
               
-              <p className="font-mono text-xs text-white/70 leading-relaxed mb-6">
-                Clear face. Good lighting. Plain background.<br />
-                No glasses, masks, or obstructions.<br />
-                Poor photo = poor result.
-              </p>
+              <div className="font-mono text-xs text-rawri-orange/90 leading-relaxed mb-6 space-y-2 uppercase">
+                <p>✗ NO MIRROR SELFIES</p>
+                <p>✗ NO EXTREME ANGLES (LOOK STRAIGHT AHEAD)</p>
+                <p>✗ NO CROPPED HEADS/HAIR</p>
+                <p>✗ NO HEAVY FILTERS</p>
+              </div>
               
               <button 
+                type="button"
                 onClick={handleModalConfirm}
-                className="w-full bg-[#F0EDE8] text-[#0D0D0D] font-sans font-bold uppercase py-3 transition-opacity hover:opacity-90"
+                className="w-full bg-rawri-white text-rawri-black font-sans font-bold uppercase py-3 transition-opacity hover:opacity-90"
               >
-                GOT IT, UPLOAD
+                PROCEED TO UPLOAD
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Progress Indicator */}
+      {/* Progress Indicator & Home Button */}
       {step > 0 && (
-        <div className="fixed top-0 left-0 right-0 p-6 flex justify-center z-50 pointer-events-none">
-          <div className="font-mono text-xs tracking-[0.2em] flex gap-4">
+        <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50 pointer-events-none">
+          <div className="pointer-events-auto">
+            <button 
+              type="button"
+              onClick={() => {
+                setStep(0);
+                setUserPhotos([]);
+                setResultImage(null);
+                setSelectedProduct(null);
+              }}
+              className="font-mono text-xs text-rawri-white/50 hover:text-rawri-white transition-colors uppercase tracking-widest flex items-center gap-2"
+            >
+              <Home size={14} /> HOME
+            </button>
+          </div>
+          <div className="font-mono text-xs tracking-[0.2em] flex gap-4 absolute left-1/2 -translate-x-1/2">
             <span className={step === 1 ? "text-rawri-white" : "text-rawri-white/30"}>01</span>
             <span className="text-rawri-white/30">—</span>
             <span className={step === 2 ? "text-rawri-white" : "text-rawri-white/30"}>02</span>
@@ -344,6 +430,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             <span className="text-rawri-white/30">—</span>
             <span className={step === 4 ? "text-rawri-white" : "text-rawri-white/30"}>04</span>
           </div>
+          <div className="w-[60px]" /> {/* Spacer for centering the steps */}
         </div>
       )}
 
@@ -391,6 +478,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
 
             <div className="flex flex-col items-center w-full max-w-md mx-auto mb-16 md:mb-24">
               <button 
+                type="button"
                 onClick={() => setStep(1)}
                 className="w-full bg-rawri-white text-rawri-black font-sans font-bold uppercase py-4 px-12 hover:bg-rawri-white/90 transition-colors flex items-center justify-center gap-2"
               >
@@ -418,9 +506,19 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             <p className="font-mono text-xs tracking-widest text-rawri-orange mb-[16px]">STEP 01</p>
             <h2 className="font-sans font-bold text-rawri-white text-3xl mb-[24px] text-center">UPLOAD YOUR PHOTO</h2>
             
-            <p className="font-mono text-xs text-rawri-white/50 text-center mb-[32px] max-w-xs leading-relaxed">
-              UPLOAD 1 PHOTO FOR BEST RESULTS. STAND AGAINST A PLAIN WALL. GOOD LIGHTING. FRONT FACING.
-            </p>
+            <div className="mb-[32px] flex flex-col items-center text-center w-full max-w-sm bg-rawri-white/5 border border-rawri-white/20 p-5 relative">
+              <div className="absolute top-0 left-0 w-full h-1 bg-rawri-orange" />
+              <p className="font-sans font-black text-rawri-white text-xl uppercase tracking-wider mb-4">
+                BEFORE YOU UPLOAD
+              </p>
+              <div className="font-mono text-xs text-rawri-white/80 leading-relaxed mb-4 uppercase space-y-1">
+                <p>• Clear face. Good lighting. Plain background.</p>
+                <p>• No glasses, masks, or obstructions.</p>
+              </div>
+              <p className="font-mono text-sm font-bold text-rawri-orange uppercase tracking-widest bg-rawri-orange/10 px-3 py-2 w-full">
+                Poor photo = poor result.
+              </p>
+            </div>
 
             <div 
               className="w-full min-h-[400px] border-2 border-dashed border-rawri-white/20 bg-rawri-black flex flex-col items-center justify-center relative cursor-pointer group overflow-hidden"
@@ -456,12 +554,14 @@ Shot on 35mm, ultra sharp, photorealistic.`;
               <div className="w-full flex flex-col items-center mt-6 gap-6">
                 <div className="flex gap-4">
                   <button 
+                    type="button"
                     onClick={handleUploadClick}
                     className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors"
                   >
                     ADD MORE PHOTOS
                   </button>
                   <button 
+                    type="button"
                     onClick={() => setUserPhotos([])}
                     className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors"
                   >
@@ -469,6 +569,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
                   </button>
                 </div>
                 <button 
+                  type="button"
                   onClick={() => setStep(2)}
                   className="w-full bg-rawri-white text-rawri-black font-sans font-bold uppercase py-4 px-6 hover:bg-rawri-white/90 transition-colors flex items-center justify-center gap-2"
                 >
@@ -496,23 +597,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             
             <div className="flex flex-col items-center mb-8 shrink-0">
               <p className="font-mono text-xs tracking-widest text-rawri-orange mb-2">STEP 02</p>
-              <h2 className="font-sans font-bold text-rawri-white text-3xl mb-6 text-center">PICK YOUR PIECE</h2>
-              
-              <div className="flex flex-wrap justify-center gap-2">
-                {(['ALL', 'TOPS & JACKETS'] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`font-mono text-xs uppercase px-4 py-2 transition-colors border ${
-                      filter === f 
-                        ? 'bg-rawri-white text-rawri-black border-rawri-white' 
-                        : 'bg-transparent text-rawri-white border-rawri-white hover:bg-rawri-white/10'
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
+              <h2 className="font-sans font-bold text-rawri-white text-3xl text-center">PICK YOUR PIECE</h2>
             </div>
 
             <div className="flex-grow overflow-y-auto min-h-0 pb-20 md:pb-8 custom-scrollbar">
@@ -521,16 +606,12 @@ Shot on 35mm, ultra sharp, photorealistic.`;
                   {errorMessage}
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                {PRODUCTS.filter(product => {
-                  if (filter === 'ALL') return true;
-                  if (filter === 'TOPS & JACKETS') return product.category === 'tops';
-                  return true;
-                }).map(product => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                {PRODUCTS.map(product => (
                   <div 
                     key={product.id} 
                     onClick={() => handleTryOn(product)}
-                    className="bg-rawri-black border border-rawri-white/10 flex flex-col group cursor-pointer hover:border-rawri-white hover:bg-rawri-white/5 transition-all duration-300"
+                    className="bg-[#111] border border-rawri-white/10 flex flex-col group cursor-pointer hover:border-rawri-white/30 hover:bg-rawri-white/5 shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                   >
                     <div className="aspect-[3/4] overflow-hidden border-b border-rawri-white/20 relative">
                       <img 
@@ -548,6 +629,7 @@ Shot on 35mm, ultra sharp, photorealistic.`;
                       <p className="font-mono text-sm text-rawri-white/80 mb-6">{product.price}</p>
                       
                       <button 
+                        type="button"
                         className="w-full border border-rawri-white text-rawri-white font-sans font-bold uppercase py-3 px-4 group-hover:bg-rawri-white group-hover:text-rawri-black transition-colors"
                       >
                         TRY IT ON
@@ -599,51 +681,64 @@ Shot on 35mm, ultra sharp, photorealistic.`;
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col md:flex-row w-full relative"
+            className="flex flex-col xl:flex-row w-full min-h-[100dvh]"
           >
-            <div className="w-full md:w-[60%] md:max-h-[100dvh] md:overflow-y-auto bg-rawri-black border-b md:border-b-0 md:border-r border-rawri-white/20 custom-scrollbar pt-24 md:pt-0 flex flex-col items-center justify-center">
-              {resultImage && (
-                <img 
-                  src={resultImage} 
-                  alt="Virtual Try-On Result" 
-                  className="w-full h-auto object-contain object-top"
-                />
-              )}
+            <div className="w-full xl:w-[55%] min-h-[60vh] xl:h-[100dvh] bg-[#0A0A0A] border-b xl:border-b-0 xl:border-r border-rawri-white/10 pt-[100px] pb-12 px-6 flex flex-col items-center justify-center relative">
+              <div className="w-full max-w-[450px] aspect-[4/5] bg-rawri-black shadow-2xl border border-rawri-white/5 relative group overflow-hidden">
+                {resultImage && (
+                  <img 
+                    src={resultImage} 
+                    alt="Virtual Try-On Result" 
+                    className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                  />
+                )}
+                {/* Branding overlay on image */}
+                <div className="absolute bottom-4 left-4 mix-blend-difference pointer-events-none">
+                  <span className="font-sans font-bold text-white text-xl tracking-wider opacity-90 lowercase">rawri</span>
+                </div>
+              </div>
             </div>
             
-            <div className="w-full md:w-[40%] md:h-[100dvh] md:sticky md:top-0 flex flex-col justify-center p-6 md:p-12 pt-12 md:pt-12 overflow-y-auto custom-scrollbar bg-rawri-black">
-              <p className="font-mono text-xs tracking-widest text-rawri-orange mb-4">YOUR LOOK</p>
-              <h2 className="font-sans font-bold text-3xl md:text-5xl text-rawri-white uppercase mb-4">
-                {selectedProduct?.name}
-              </h2>
-              <p className="font-mono text-xl text-rawri-white/70 mb-12">{selectedProduct?.price}</p>
-              
-              <div className="flex flex-col gap-4 w-full mt-auto md:mt-0">
-                <a 
-                  href={selectedProduct?.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full bg-rawri-white text-rawri-black font-sans font-bold uppercase py-4 px-6 text-center hover:bg-rawri-white/90 transition-colors"
-                >
-                  SHOP THIS LOOK
-                </a>
-                <button 
-                  onClick={() => setStep(2)}
-                  className="w-full border border-rawri-white text-rawri-white font-sans font-bold uppercase py-4 px-6 text-center hover:bg-rawri-white hover:text-rawri-black transition-colors"
-                >
-                  TRY ANOTHER PIECE
-                </button>
-                <button 
-                  onClick={() => {
-                    setUserPhotos([]);
-                    setResultImage(null);
-                    setSelectedProduct(null);
-                    setStep(0);
-                  }}
-                  className="mt-4 font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors text-center"
-                >
-                  START OVER
-                </button>
+            <div className="w-full xl:w-[45%] flex flex-col justify-center p-8 md:p-12 xl:p-24 bg-rawri-black">
+              <div className="max-w-md w-full mx-auto xl:mx-0">
+                <p className="font-mono text-xs tracking-[0.2em] text-rawri-orange mb-4">YOUR LOOK IS READY</p>
+                <h2 className="font-sans font-black text-4xl md:text-5xl xl:text-6xl text-rawri-white uppercase mb-4 leading-none tracking-tight">
+                  {selectedProduct?.name}
+                </h2>
+                <p className="font-mono text-lg text-rawri-white/70 mb-12">{selectedProduct?.price}</p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 w-full">
+                  <a 
+                    href={selectedProduct?.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-rawri-white text-rawri-black font-sans font-bold uppercase py-4 px-6 text-center hover:bg-rawri-white/90 transition-colors"
+                  >
+                    SHOP THIS LOOK
+                  </a>
+                  <button 
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="flex-1 border border-rawri-white text-rawri-white font-sans font-bold uppercase py-4 px-6 text-center hover:bg-rawri-white hover:text-rawri-black transition-colors"
+                  >
+                    TRY ANOTHER
+                  </button>
+                </div>
+                
+                <div className="mt-12 pt-8 border-t border-rawri-white/10">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setUserPhotos([]);
+                      setResultImage(null);
+                      setSelectedProduct(null);
+                      setStep(0);
+                    }}
+                    className="font-mono text-xs text-rawri-white/50 uppercase hover:text-rawri-white transition-colors flex items-center gap-2"
+                  >
+                    <ArrowRight size={14} className="rotate-180" /> START OVER
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
